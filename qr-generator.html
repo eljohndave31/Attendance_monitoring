@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="qr-generator.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+
+ 
+    <div id="dashboard" class="dashboard-container">
+      
+        <header class="dashboard-header">
+            <div class="header-left">
+                <div class="logo-small">
+                    <i class="fas fa-qrcode"></i>
+                    <span>Attendance</span>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="header-btn" id="notificationsBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </button>
+                    <button class="header-btn" id="fullscreenBtn">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <div class="user-dropdown">
+                        <button class="user-btn" id="userMenuBtn">
+                            <div class="user-avatar">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <span>Admin</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-menu" id="userMenu">
+                            <a href="#"><i class="fas fa-user-cog"></i> Profile</a>
+                            <a href="#"><i class="fas fa-cog"></i> Settings</a>
+                            <div class="divider"></div>
+                            <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="dashboard-layout">
+
+            <!-- ------------------Sidebar Navigation -------->
+            <nav class="sidebar" id="sidebar">
+                <ul class="nav-menu">
+                    <li class="nav-item" data-view="dashboard">
+                        <a href="#">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item active" data-view="qr-generator">
+                        <a href="#">
+                            <i class="fas fa-qrcode"></i>
+                            <span>QR Generator</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-view="employee-management">
+                        <a href="#">
+                            <i class="fas fa-users"></i>
+                            <span>Employee Management</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-view="attendance-monitor">
+                        <a href="#">
+                            <i class="fas fa-clipboard-check"></i>
+                            <span>Attendance Monitor</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-view="reports">
+                        <a href="#">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Reports</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-view="settings">
+                        <a href="#">
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-view="system-logs">
+                        <a href="#">
+                            <i class="fas fa-clipboard-list"></i>
+                            <span>System Logs</span>
+                        </a>
+                    </li>
+                </ul>
+                
+                <div class="sidebar-footer">
+                    <div class="system-status">
+                        <div class="status-indicator active"></div>
+                        <span>System Online</span>
+                    </div>
+                    <div class="current-time" id="currentTime">
+                        10:30 AM
+                    </div>
+                </div>
+            </nav>
+            
+            <!-- Main Content Area -->
+            <main class="main-content" id="mainContent">
+
+                <div class="content-header">
+                    <h1 id="pageTitle">QR Generator</h1>
+                    <div class="breadcrumb" id="breadcrumb">
+                     <span>QR Generator</span>
+                    </div>
+                </div>
+                
+                <!-- Views will be loaded here -->
+                <div class="content-view" id="contentView">
+                    
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <template id="qrGeneratorView">
+        <div class="qr-generator-view">
+            <div class="qr-config-section">
+                <div class="content-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>QR Configuration</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="qrConfigForm">
+                                <div class="form-group">
+                                    <label for="qrLocation">Location</label>
+                                    <select id="qrLocation" class="form-control">
+                                        <option value="office_main">Poblacion Ward II, Minglanilla</option>
+                                        <option value="office_second">Staca Tunghaan Minglanilla</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="qrRefresh">Refresh Interval</label>
+                                    <select id="qrRefresh" class="form-control">
+                                        <option value="1">1 minute</option>
+                                        <option value="3">3 minutes</option>
+                                        <option value="5" selected>5 minutes</option>
+                                        <option value="10">10 minutes</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="qrExpiry">Expiry Time</label>
+                                    <select id="qrExpiry" class="form-control">
+                                        <option value="1">1 minute</option>
+                                        <option value="3">3 minutes</option>
+                                        <option value="5" selected>5 minutes</option>
+                                        <option value="10">10 minutes</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="checkbox">
+                                        <input type="checkbox" id="enableGPS">
+                                        <span>Enable GPS Validation</span>
+                                    </label>
+                                    <div class="sub-option" id="gpsOptions" style="display: none;">
+                                        <label for="gpsRadius">Radius (meters)</label>
+                                        <input type="number" id="gpsRadius" class="form-control" value="100" min="10" max="1000">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="checkbox">
+                                        <input type="checkbox" id="autoRefresh" checked>
+                                        <span>Auto-refresh QR Code</span>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="btn-primary" id="generateQR">
+                                        <i class="fas fa-qrcode"></i> Generate QR Code
+                                    </button>
+                                    <button type="button" class="btn-secondary" id="pauseQR">
+                                        <i class="fas fa-pause"></i> Pause Generation
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="content-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Live QR Display</h3>
+                            <div class="qr-status">
+                                <span class="status-badge active">Active</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="qr-live-display">
+                                <div class="qr-large" id="liveQRCode">
+                                    <div class="qr-large-placeholder">
+                                        <i class="fas fa-qrcode"></i>
+                                        <p>QR Code Will Appear Here</p>
+                                    </div>
+                                </div>
+                                <div class="qr-live-info">
+                                    <div class="info-row">
+                                        <span>Token:</span>
+                                        <strong id="liveToken">--</strong>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Expires in:</span>
+                                        <strong class="countdown" id="liveExpiry">--:--</strong>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Location:</span>
+                                        <strong id="liveLocation">--</strong>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Generated:</span>
+                                        <strong id="liveGenerated">--</strong>
+                                    </div>
+                                </div>
+                                <div class="qr-live-actions">
+                                    <button class="btn-secondary" id="refreshLiveQR">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                    <button class="btn-secondary" id="fullscreenQR">
+                                        <i class="fas fa-expand"></i> Full Screen
+                                    </button>
+                                    <button class="btn-primary" id="downloadQR">
+                                        <i class="fas fa-download"></i> Download
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- QR History -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Recent QR Codes</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Generated</th>
+                                    <th>Expired</th>
+                                    <th>Location</th>
+                                    <th>Scans</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="qrHistory">
+                                <!-- Dynamic rows will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <script src="qr-generator.js"></script>
+</body>
+</html>
