@@ -10,10 +10,108 @@ let qrState = {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadQRGeneratorView();
-    initializeNavigation();
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    setupEventListeners();
+    initializeTimeUpdates();
+    loadQRHistory();
 });
+
+function setupEventListeners() {
+    // Sidebar navigation - just update active state, let links work naturally
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+    });
+
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            sidebarToggle.innerHTML = sidebar.classList.contains('collapsed') 
+                ? '<i class="fas fa-bars"></i>'
+                : '<i class="fas fa-times"></i>';
+        });
+    }
+
+    // User menu dropdown
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userMenu = document.getElementById('userMenu');
+    
+    if (userMenuBtn) {
+        userMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userMenu.classList.toggle('show');
+        });
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.user-dropdown')) {
+            userMenu?.classList.remove('show');
+        }
+    });
+
+    // Fullscreen toggle
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', togglePageFullscreen);
+    }
+
+    // Search button
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            console.log('Search clicked');
+        });
+    }
+
+    // Notifications button
+    const notificationsBtn = document.getElementById('notificationsBtn');
+    if (notificationsBtn) {
+        notificationsBtn.addEventListener('click', () => {
+            console.log('Notifications clicked');
+        });
+    }
+}
+
+function initializeTimeUpdates() {
+    updateCurrentTime();
+    setInterval(() => updateCurrentTime(), 1000);
+}
+
+function updateCurrentTime() {
+    const now = new Date();
+    
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        const timeString = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        timeElement.textContent = timeString;
+    }
+    
+    const timePeriodElement = document.getElementById('timePeriod');
+    if (timePeriodElement) {
+        const period = now.getHours() >= 12 ? 'PM' : 'AM';
+        timePeriodElement.textContent = period;
+    }
+    
+    const dateElement = document.getElementById('currentDate');
+    if (dateElement) {
+        dateElement.textContent = now.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    }
+}
 
 // Load QR Generator template
 function loadQRGeneratorView() {
@@ -137,7 +235,6 @@ function loadQRHistory() {
             token: 'abc123xyz789',
             generated: '10:30 AM',
             expired: '10:35 AM',
-            location: 'Poblacion Ward II',
             scans: 45,
             status: 'Expired'
         },
@@ -145,7 +242,6 @@ function loadQRHistory() {
             token: 'def456uvw123',
             generated: '10:25 AM',
             expired: '10:30 AM',
-            location: 'Poblacion Ward II',
             scans: 38,
             status: 'Expired'
         },
@@ -153,7 +249,6 @@ function loadQRHistory() {
             token: 'ghi789rst456',
             generated: '10:20 AM',
             expired: '10:25 AM',
-            location: 'Staca Tunghaan',
             scans: 52,
             status: 'Expired'
         }
@@ -164,9 +259,8 @@ function loadQRHistory() {
             <td><code>${item.token}</code></td>
             <td>${item.generated}</td>
             <td>${item.expired}</td>
-            <td>${item.location}</td>
             <td>${item.scans}</td>
-            <td><span class="badge badge-danger">${item.status}</span></td>
+            <td><span class="badge-expired">${item.status}</span></td>
         </tr>
     `).join('');
 }
@@ -196,8 +290,8 @@ function setupQRGeneratorView() {
         pauseBtn.addEventListener('click', () => {
             qrState.isGenerating = !qrState.isGenerating;
             pauseBtn.innerHTML = qrState.isGenerating 
-                ? '<i class="fas fa-pause"></i> Pause Generation' 
-                : '<i class="fas fa-play"></i> Resume Generation';
+                ? '<i class="fas fa-pause"></i> Pause' 
+                : '<i class="fas fa-play"></i> Resume';
             pauseBtn.classList.toggle('paused');
         });
     }
@@ -231,6 +325,7 @@ function setupQRGeneratorView() {
         enableGPSCheckbox.addEventListener('change', () => {
             gpsOptions.style.display = enableGPSCheckbox.checked ? 'block' : 'none';
         });
+        gpsOptions.style.display = 'none';
     }
 
     if (autoRefreshCheckbox) {
@@ -247,90 +342,7 @@ function setupQRGeneratorView() {
         });
     }
 
-    // Generate initial QR code
     createLiveQRCode();
-}
-
-// Initialize sidebar navigation
-function initializeNavigation() {
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            const view = this.getAttribute('data-view');
-            handleNavigation(view);
-        });
-    });
-    
-    // User menu dropdown
-    const userMenuBtn = document.getElementById('userMenuBtn');
-    const userMenu = document.getElementById('userMenu');
-    if (userMenuBtn) {
-        userMenuBtn.addEventListener('click', function() {
-            userMenu.classList.toggle('show');
-        });
-    }
-    
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.user-dropdown')) {
-            userMenu?.classList.remove('show');
-        }
-    });
-    
-    // Fullscreen button
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    if (fullscreenBtn) {
-        fullscreenBtn.addEventListener('click', togglePageFullscreen);
-    }
-}
-
-function handleNavigation(view) {
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
-    
-    const titles = {
-        'dashboard': 'Dashboard',
-        'qr-generator': 'QR Generator',
-        'employee-management': 'Employee Management',
-        'attendance-monitor': 'Attendance Monitor',
-        'reports': 'Reports',
-        'settings': 'Settings',
-        'system-logs': 'System Logs'
-    };
-    
-    document.getElementById('pageTitle').textContent = titles[view] || 'Dashboard';
-    
-    // Navigate to different pages
-    if (view === 'dashboard') {
-        window.location.href = 'dashboard.html';
-    } else if (view === 'qr-generator') {
-        loadQRGeneratorView();
-    } else if (view === 'employee-management') {
-        window.location.href = 'employee-management.html';
-    } else if (view === 'attendance-monitor') {
-        window.location.href = 'attendance.html';
-    } else if (view === 'reports') {
-        window.location.href = 'reports.html';
-    } else if (view === 'settings') {
-        window.location.href = 'settings.html';
-    } else if (view === 'system-logs') {
-        window.location.href = 'system-logs.html';
-    }
-}
-
-// Update current time
-function updateCurrentTime() {
-    const currentTimeElement = document.getElementById('currentTime');
-    if (currentTimeElement) {
-        const now = new Date();
-        currentTimeElement.textContent = now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit'
-        });
-    }
 }
 
 

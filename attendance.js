@@ -1,165 +1,273 @@
 let attendanceState = {
     currentPage: 1,
-    itemsPerPage: 10
+    itemsPerPage: 5,
+    selectedStatus: null,
+    employees: {
+        present: [
+            { id: 'EMP001', name: 'John Doe', dept: 'IT', checkIn: '08:15 AM', checkOut: '05:30 PM', status: 'present' },
+            { id: 'EMP002', name: 'Michael Brown', dept: 'IT', checkIn: '08:10 AM', checkOut: '05:45 PM', status: 'present' },
+            { id: 'EMP003', name: 'Robert Johnson', dept: 'Sales', checkIn: '08:00 AM', checkOut: '05:00 PM', status: 'present' }
+        ],
+        'on-time': [
+            { id: 'EMP001', name: 'John Doe', dept: 'IT', checkIn: '08:15 AM', checkOut: '05:30 PM', status: 'present' },
+            { id: 'EMP003', name: 'Robert Johnson', dept: 'Sales', checkIn: '08:00 AM', checkOut: '05:00 PM', status: 'present' }
+        ],
+        late: [
+            { id: 'EMP002', name: 'Jane Smith', dept: 'HR', checkIn: '09:30 AM', checkOut: '06:00 PM', status: 'late' },
+            { id: 'EMP004', name: 'Lisa Anderson', dept: 'Finance', checkIn: '09:15 AM', checkOut: '05:45 PM', status: 'late' }
+        ],
+        absent: [
+            { id: 'EMP005', name: 'Sarah Williams', dept: 'Finance', checkIn: '--', checkOut: '--', status: 'absent' },
+            { id: 'EMP006', name: 'David Martinez', dept: 'Admin', checkIn: '--', checkOut: '--', status: 'absent' }
+        ]
+    },
+    allAttendanceRecords: [
+        { id: 'EMP001', name: 'John Doe', dept: 'IT', checkIn: '08:15 AM', checkOut: '05:30 PM', status: 'present', duration: '9h 15m' },
+        { id: 'EMP002', name: 'Jane Smith', dept: 'HR', checkIn: '09:30 AM', checkOut: '06:00 PM', status: 'late', duration: '8h 30m' },
+        { id: 'EMP003', name: 'Robert Johnson', dept: 'Sales', checkIn: '08:00 AM', checkOut: '05:00 PM', status: 'present', duration: '9h 0m' },
+        { id: 'EMP004', name: 'Lisa Anderson', dept: 'Finance', checkIn: '09:15 AM', checkOut: '05:45 PM', status: 'late', duration: '8h 30m' },
+        { id: 'EMP005', name: 'Sarah Williams', dept: 'Finance', checkIn: '--', checkOut: '--', status: 'absent', duration: '--' },
+        { id: 'EMP006', name: 'David Martinez', dept: 'Admin', checkIn: '--', checkOut: '--', status: 'absent', duration: '--' },
+        { id: 'EMP007', name: 'Michael Brown', dept: 'IT', checkIn: '08:10 AM', checkOut: '05:45 PM', status: 'present', duration: '9h 35m' },
+        { id: 'EMP008', name: 'Emma Wilson', dept: 'Marketing', checkIn: '08:30 AM', checkOut: '05:15 PM', status: 'present', duration: '8h 45m' },
+        { id: 'EMP009', name: 'James Thompson', dept: 'Operations', checkIn: '10:00 AM', checkOut: '06:30 PM', status: 'late', duration: '8h 30m' },
+        { id: 'EMP010', name: 'Jessica Lee', dept: 'HR', checkIn: '08:05 AM', checkOut: '05:20 PM', status: 'present', duration: '9h 15m' },
+        { id: 'EMP011', name: 'Christopher Clark', dept: 'IT', checkIn: '09:45 AM', checkOut: '06:00 PM', status: 'late', duration: '8h 15m' },
+        { id: 'EMP012', name: 'Amanda White', dept: 'Sales', checkIn: '--', checkOut: '--', status: 'absent', duration: '--' }
+    ]
 };
 
-// Initialize on page load
+// Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners();
     loadAttendanceMonitorView();
-    initializeNavigation();
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    initializeTimeUpdates();
 });
 
-// Load Attendance Monitor View
-function loadAttendanceMonitorView() {
-    const template = document.getElementById('attendanceMonitorView');
-    const contentView = document.getElementById('contentView');
-    
-    if (!template || !contentView) {
-        console.error('Template or content view not found');
-        return;
-    }
-    
-    const clone = template.content.cloneNode(true);
-    contentView.innerHTML = '';
-    contentView.appendChild(clone);
-    
-    setTimeout(() => {
-        setupAttendanceMonitor();
-    }, 100);
-}
-
-// Setup Attendance Monitor UI
-function setupAttendanceMonitor() {
-    const applyFiltersBtn = document.getElementById('applyFilters');
-    const resetFiltersBtn = document.getElementById('resetFilters');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const exportBtn = document.getElementById('exportBtn');
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-
-    if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', () => {
-            console.log('Filters applied');
-        });
-    }
-
-    if (resetFiltersBtn) {
-        resetFiltersBtn.addEventListener('click', () => {
-            document.getElementById('filterStatus').value = '';
-            document.getElementById('filterDepartment').value = '';
-            document.getElementById('searchEmployee').value = '';
-            console.log('Filters reset');
-        });
-    }
-
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            console.log('Refresh attendance data');
-        });
-    }
-
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            console.log('Export attendance data');
-        });
-    }
-
-    if (prevPageBtn) {
-        prevPageBtn.addEventListener('click', () => {
-            console.log('Previous page');
-        });
-    }
-
-    if (nextPageBtn) {
-        nextPageBtn.addEventListener('click', () => {
-            console.log('Next page');
-        });
-    }
-}
-
-// Initialize Navigation
-function initializeNavigation() {
+function setupEventListeners() {
+    // Sidebar navigation - just update active state, let links work naturally
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            const view = this.getAttribute('data-view');
-            handleNavigation(view);
+        item.addEventListener('click', (e) => {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
         });
     });
+
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
     
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    // User menu dropdown
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userMenu = document.getElementById('userMenu');
+    
     if (userMenuBtn) {
-        userMenuBtn.addEventListener('click', function() {
+        userMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             userMenu.classList.toggle('show');
         });
     }
-    
-    document.addEventListener('click', function(e) {
+
+    document.addEventListener('click', (e) => {
         if (!e.target.closest('.user-dropdown')) {
             userMenu?.classList.remove('show');
         }
     });
-    
+
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (fullscreenBtn) {
         fullscreenBtn.addEventListener('click', togglePageFullscreen);
     }
 }
-
-// Handle Navigation
-function handleNavigation(view) {
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
-    
-    const titles = {
-        'dashboard': 'Dashboard',
-        'qr-generator': 'QR Generator',
-        'employee-management': 'Employee Management',
-        'attendance-monitor': 'Attendance Monitor',
-        'reports': 'Reports',
-        'settings': 'Settings',
-        'system-logs': 'System Logs'
-    };
-    
-    document.getElementById('pageTitle').textContent = titles[view] || 'Dashboard';
-    
-    // Navigate to different pages
-    if (view === 'dashboard') {
-        window.location.href = 'dashboard.html';
-    } else if (view === 'qr-generator') {
-        window.location.href = 'qr-generator.html';
-    } else if (view === 'employee-management') {
-        window.location.href = 'employee-management.html';
-    } else if (view === 'attendance-monitor') {
-        loadAttendanceMonitorView();
-    } else if (view === 'reports') {
-        window.location.href = 'reports.html';
-    } else if (view === 'settings') {
-        window.location.href = 'settings.html';
-    } else if (view === 'system-logs') {
-        window.location.href = 'system-logs.html';
-    }
+// Initialize Time Updates
+function initializeTimeUpdates() {
+    updateCurrentTime();
+    setInterval(() => updateCurrentTime(), 1000);
 }
 
 // Update Current Time
 function updateCurrentTime() {
-    const currentTimeElement = document.getElementById('currentTime');
-    if (currentTimeElement) {
-        const now = new Date();
-        currentTimeElement.textContent = now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit'
+    const now = new Date();
+    
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        timeElement.textContent = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+    }
+    
+    const dateElement = document.getElementById('currentDate');
+    if (dateElement) {
+        dateElement.textContent = now.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
         });
     }
 }
+// Load Attendance Monitor View
+function loadAttendanceMonitorView() {
+    const template = document.getElementById('attendanceMonitorView');
+    const contentView = document.getElementById('contentView');
+    
+    if (!template || !contentView) return;
+    
+    const clone = template.content.cloneNode(true);
+    contentView.innerHTML = '';
+    contentView.appendChild(clone);
+    
+    setTimeout(setupAttendanceMonitor, 100);
+}
 
-// Toggle Page Fullscreen
+function setupAttendanceMonitor() {
+    setupStatCards();
+    setupFilterControls();
+    setupTableControls();
+    loadAttendanceTable();
+}
+
+// Load Attendance Table
+function loadAttendanceTable() {
+    const tableBody = document.getElementById('attendanceTableBody');
+    if (!tableBody) return;
+
+    const startIndex = (attendanceState.currentPage - 1) * attendanceState.itemsPerPage;
+    const endIndex = startIndex + attendanceState.itemsPerPage;
+    const pageRecords = attendanceState.allAttendanceRecords.slice(startIndex, endIndex);
+
+    tableBody.innerHTML = pageRecords.map(record => `
+        <tr>
+            <td><strong>${record.id}</strong></td>
+            <td>${record.name}</td>
+            <td>${record.dept}</td>
+            <td>${record.checkIn}</td>
+            <td>${record.checkOut}</td>
+            <td>
+                <span class="status-badge ${record.status === 'present' ? 'present' : record.status === 'late' ? 'late' : 'absent'}">
+                    ${record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                </span>
+            </td>
+            <td>${record.duration}</td>
+        </tr>
+    `).join('');
+
+    updatePaginationInfo();
+}
+
+function updatePaginationInfo() {
+    const totalPages = Math.ceil(attendanceState.allAttendanceRecords.length / attendanceState.itemsPerPage);
+    document.getElementById('pageInfo').textContent = `Page ${attendanceState.currentPage} of ${totalPages}`;
+    
+    document.getElementById('prevPage').disabled = attendanceState.currentPage === 1;
+    document.getElementById('nextPage').disabled = attendanceState.currentPage === totalPages;
+}
+
+// Setup Stat Cards with Click Handlers
+function setupStatCards() {
+    document.querySelectorAll('.stat-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const status = this.getAttribute('data-status');
+            showStatDetails(status);
+        });
+    });
+}
+
+function showStatDetails(status) {
+    const panel = document.getElementById('statsDetailsPanel');
+    const title = document.getElementById('detailsTitle');
+    const employeesList = document.getElementById('employeesList');
+    
+    const titles = {
+        present: 'Present Today',
+        'on-time': 'On Time',
+        late: 'Late Arrivals',
+        absent: 'Absent'
+    };
+    
+    title.textContent = titles[status] || 'Employees';
+    const employees = attendanceState.employees[status] || [];
+    
+    employeesList.innerHTML = employees.map(emp => `
+        <div class="employee-row">
+            <div class="employee-name-cell">
+                <div class="employee-avatar">${emp.name.charAt(0)}</div>
+                <div class="employee-info">
+                    <h4>${emp.name}</h4>
+                    <p>${emp.id}</p>
+                </div>
+            </div>
+            <div class="employee-cell">
+                <span class="employee-dept">${emp.dept}</span>
+            </div>
+            <div class="employee-cell">
+                <span class="employee-checkin">${emp.checkIn}</span>
+            </div>
+            <div class="employee-cell">
+                <span class="employee-status ${emp.status}">${emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    panel.style.display = 'block';
+}
+
+// Close Details Panel
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#closeDetails')) {
+        document.getElementById('statsDetailsPanel').style.display = 'none';
+    }
+});
+
+// Setup Filter Controls
+function setupFilterControls() {
+    document.getElementById('applyFilters')?.addEventListener('click', () => {
+        console.log('Filters applied');
+    });
+    
+    document.getElementById('resetFilters')?.addEventListener('click', () => {
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterDepartment').value = '';
+        document.getElementById('searchEmployee').value = '';
+    });
+}
+
+// Setup Table Controls
+function setupTableControls() {
+    document.getElementById('prevPage')?.addEventListener('click', () => {
+        if (attendanceState.currentPage > 1) {
+            attendanceState.currentPage--;
+            loadAttendanceTable();
+        }
+    });
+
+    document.getElementById('nextPage')?.addEventListener('click', () => {
+        const totalPages = Math.ceil(attendanceState.allAttendanceRecords.length / attendanceState.itemsPerPage);
+        if (attendanceState.currentPage < totalPages) {
+            attendanceState.currentPage++;
+            loadAttendanceTable();
+        }
+    });
+
+    document.getElementById('refreshBtn')?.addEventListener('click', () => {
+        loadAttendanceTable();
+        console.log('Table refreshed');
+    });
+    
+    document.getElementById('exportBtn')?.addEventListener('click', () => {
+        console.log('Exporting data');
+    });
+}
+
+
 function togglePageFullscreen() {
     if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => {
@@ -168,15 +276,4 @@ function togglePageFullscreen() {
     } else {
         document.exitFullscreen();
     }
-}
-
-// Action function stubs for button clicks in table
-function viewDetails(id) {
-    console.log('View details for:', id);
-    // Backend will handle details view
-}
-
-function editRecord(id) {
-    console.log('Edit record for:', id);
-    // Backend will handle record edit
 }

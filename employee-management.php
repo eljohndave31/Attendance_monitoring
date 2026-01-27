@@ -3,111 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Management</title>
+    <title>Employee Management | Attendance System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="employee-management.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
     <div id="dashboard" class="dashboard-container">
-        <header class="dashboard-header">
-            <div class="header-left">
-                <div class="logo-small">
-                    <i class="fas fa-qrcode"></i>
-                    <span>Attendance</span>
-                </div>
-            </div>
-            
-            <div class="header-right">
-                <div class="header-actions">
-                    <button class="header-btn" id="notificationsBtn">
-                        <i class="fas fa-bell"></i>
-                        <span class="badge">3</span>
-                    </button>
-                    <button class="header-btn" id="fullscreenBtn">
-                        <i class="fas fa-expand"></i>
-                    </button>
-                    <div class="user-dropdown">
-                        <button class="user-btn" id="userMenuBtn">
-                            <div class="user-avatar">
-                                <i class="fas fa-user-shield"></i>
-                            </div>
-                            <span>Admin</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                        <div class="dropdown-menu" id="userMenu">
-                            <a href="#"><i class="fas fa-user-cog"></i> Profile</a>
-                            <a href="#"><i class="fas fa-cog"></i> Settings</a>
-                            <div class="divider"></div>
-                            <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <?php include 'components/header.php'; ?>
 
         <div class="dashboard-layout">
-            <nav class="sidebar" id="sidebar">
-                <ul class="nav-menu">
-                    <li class="nav-item" data-view="dashboard">
-                        <a href="#">
-                            <i class="fas fa-tachometer-alt"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item" data-view="qr-generator">
-                        <a href="#">
-                            <i class="fas fa-qrcode"></i>
-                            <span>QR Generator</span>
-                        </a>
-                    </li>
-                    <li class="nav-item active" data-view="employee-management">
-                        <a href="#">
-                            <i class="fas fa-users"></i>
-                            <span>Employee Management</span>
-                        </a>
-                    </li>
-                    <li class="nav-item" data-view="attendance-monitor">
-                        <a href="#">
-                            <i class="fas fa-clipboard-check"></i>
-                            <span>Attendance Monitor</span>
-                        </a>
-                    </li>
-                    <li class="nav-item" data-view="reports">
-                        <a href="#">
-                            <i class="fas fa-chart-bar"></i>
-                            <span>Reports</span>
-                        </a>
-                    </li>
-                    <li class="nav-item" data-view="settings">
-                        <a href="#">
-                            <i class="fas fa-cog"></i>
-                            <span>Settings</span>
-                        </a>
-                    </li>
-                    <li class="nav-item" data-view="system-logs">
-                        <a href="#">
-                            <i class="fas fa-clipboard-list"></i>
-                            <span>System Logs</span>
-                        </a>
-                    </li>
-                </ul>
-                
-                <div class="sidebar-footer">
-                    <div class="system-status">
-                        <div class="status-indicator active"></div>
-                        <span>System Online</span>
-                    </div>
-                    <div class="current-time" id="currentTime">10:30 AM</div>
-                </div>
-            </nav>
+            <?php include 'components/sidebar.php'; ?>
 
             <main class="main-content" id="mainContent">
                 <div class="content-header">
-                    <h1 id="pageTitle">Employee Management</h1>
-                    <!-- <div class="breadcrumb" id="breadcrumb">
-                        <span>Employee Management</span>
-                    </div> -->
+                    <div class="header-content">
+                        <h1 id="pageTitle">Employee Management</h1>
+                        <p class="page-subtitle">Manage employee records and information</p>
+                    </div>
+                    <div class="header-actions-right">
+                        <button class="btn-icon" id="refreshData" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="content-view" id="contentView"></div>
@@ -115,11 +35,11 @@
         </div>
     </div>
 
+    <!-- Employee Management Template -->
     <template id="employeeManagementView">
         <div class="employee-management-view">
             <!-- Header Section -->
             <div class="management-header">
-    
                 <div class="header-actions">
                     <button class="btn-primary" id="addEmployeeBtn">
                         <i class="fas fa-user-plus"></i> Add New Employee
@@ -227,6 +147,7 @@
             </div>
             <div class="modal-body">
                 <form id="employeeForm">
+                    <input type="hidden" id="employeeIdHidden">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="employeeId">Employee ID</label>
@@ -293,6 +214,21 @@
                         <button type="submit" class="btn-primary">Save Employee</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmationModal" class="confirmation-modal">
+        <div class="confirmation-content">
+            <div class="confirmation-icon">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <h3 class="confirmation-title">Delete Employee?</h3>
+            <p class="confirmation-message">Are you sure you want to delete this employee? This action cannot be undone.</p>
+            <div class="confirmation-actions">
+                <button class="btn-cancel-delete" id="cancelDeleteBtn">Cancel</button>
+                <button class="btn-confirm-delete" id="confirmDeleteBtn">Delete</button>
             </div>
         </div>
     </div>
