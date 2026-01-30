@@ -1,6 +1,18 @@
 // Enhanced Dashboard JavaScript
 class Dashboard {
     constructor() {
+        this.qrState = {
+            currentToken: null,
+            expiryTime: null,
+            qrInstance: null,
+            countdownInterval: null,
+            locationMap: {
+                'office_main': 'Poblacion Ward II, Minglanilla',
+                'office_second': 'Staca Tunghaan Minglanilla',
+                'office_branch': 'Upper Pakigne Minglanilla',
+                'remote': 'Remote Location'
+            }
+        };
         this.initialize();
     }
 
@@ -9,7 +21,7 @@ class Dashboard {
             this.loadDashboardView();
             this.setupEventListeners();
             this.initializeTimeUpdates();
-            this.initializeQRCode();
+            this.initializeDashboardEvents();
             this.showWelcomeToast();
         });
     }
@@ -25,11 +37,16 @@ class Dashboard {
             
             // Initialize dashboard-specific event listeners
             this.initializeDashboardEvents();
+            
+            // Load QR code after view is loaded
+            setTimeout(() => {
+                this.loadQRCode();
+            }, 100);
         }
     }
 
     setupEventListeners() {
-        // Sidebar navigation - just update active state, let links work naturally
+        // Sidebar navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -79,25 +96,13 @@ class Dashboard {
         if (fullscreenBtn) {
             fullscreenBtn.addEventListener('click', this.toggleFullscreen);
         }
-
-        // Search button
-        const searchBtn = document.getElementById('searchBtn');
-        if (searchBtn) {
-            searchBtn.addEventListener('click', this.openSearch);
-        }
-
-        // Notifications button
-        const notificationsBtn = document.getElementById('notificationsBtn');
-        if (notificationsBtn) {
-            notificationsBtn.addEventListener('click', this.showNotifications);
-        }
     }
 
     initializeDashboardEvents() {
         // Refresh data button
         const refreshDataBtn = document.getElementById('refreshData');
         if (refreshDataBtn) {
-            refreshDataBtn.addEventListener('click', this.refreshDashboardData);
+            refreshDataBtn.addEventListener('click', () => this.refreshDashboardData());
         }
 
         // Quick action buttons
@@ -108,29 +113,33 @@ class Dashboard {
             });
         });
 
-        // QR code buttons
-        const qrButtons = [
-            { id: 'generateQRBtn', action: this.generateQRCode },
-            { id: 'refreshQRBtn', action: this.refreshQRCode },
-            { id: 'downloadQRBtn', action: this.downloadQRCode },
-            { id: 'fullscreenQRBtn', action: this.fullscreenQRCode },
-            { id: 'shareQRBtn', action: this.shareQRCode }
-        ];
-
-        qrButtons.forEach(({ id, action }) => {
-            const btn = document.getElementById(id);
-            if (btn) btn.addEventListener('click', action.bind(this));
-        });
-
         // View all attendance
         const viewAllBtn = document.getElementById('viewAllAttendanceBtn');
         if (viewAllBtn) {
-            viewAllBtn.addEventListener('click', this.viewAllAttendance);
+            viewAllBtn.addEventListener('click', () => this.viewAllAttendance());
+        }
+
+        // QR Code Management buttons
+        const refreshQRBtn = document.getElementById('refreshQRBtn');
+        if (refreshQRBtn) {
+            refreshQRBtn.addEventListener('click', () => this.loadQRCode());
+        }
+
+        const downloadQRBtn = document.getElementById('downloadQRBtn');
+        if (downloadQRBtn) {
+            downloadQRBtn.addEventListener('click', () => this.downloadQRCode());
+        }
+
+        const fullscreenQRBtn = document.getElementById('fullscreenQRBtn');
+        if (fullscreenQRBtn) {
+            fullscreenQRBtn.addEventListener('click', () => this.fullscreenQRCode());
+        }
+
+        const shareQRBtn = document.getElementById('shareQRBtn');
+        if (shareQRBtn) {
+            shareQRBtn.addEventListener('click', () => this.shareQRCode());
         }
     }
-
-    
-
 
     initializeTimeUpdates() {
         this.updateDateTime();
@@ -138,17 +147,26 @@ class Dashboard {
     }
 
     updateDateTime() {
+        // Use simple Date object
         const now = new Date();
         
         // Update time
         const timeElement = document.getElementById('currentTime');
         if (timeElement) {
-            timeElement.textContent = now.toLocaleTimeString('en-US', {
+            const timeString = now.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
             });
+            timeElement.textContent = timeString;
+        }
+        
+        // Update time period (AM/PM)
+        const timePeriodElement = document.getElementById('timePeriod');
+        if (timePeriodElement) {
+            const period = now.getHours() >= 12 ? 'PM' : 'AM';
+            timePeriodElement.textContent = period;
         }
         
         // Update date
@@ -160,191 +178,32 @@ class Dashboard {
                 year: 'numeric'
             });
         }
-        
-    
-        // Update QR countdown
-        this.updateQRCountdown();
-    }
-
-    updateQRCountdown() {
-        const countdownElement = document.getElementById('qrExpiryCountdown');
-        const validUntilElement = document.getElementById('qrValidUntil');
-        
-        if (countdownElement || validUntilElement) {
-            // Simulate countdown - in real app, this would be based on actual expiration
-            const expiryTime = new Date();
-            expiryTime.setMinutes(expiryTime.getMinutes() + 30); // 30 minutes from now
-            
-            if (countdownElement) {
-                const diff = expiryTime - new Date();
-                const minutes = Math.floor(diff / 60000);
-                const seconds = Math.floor((diff % 60000) / 1000);
-                countdownElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
-            
-            if (validUntilElement) {
-                validUntilElement.textContent = expiryTime.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                });
-            }
-        }
-    }
-
-    initializeQRCode() {
-        const qrContainer = document.getElementById('qrcode');
-        if (qrContainer && typeof QRCode !== 'undefined') {
-            // Generate a unique token for the QR code
-            const token = `ATTENDANCE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Update token display
-            const tokenDisplay = document.getElementById('qrTokenDisplay');
-            const activeToken = document.getElementById('activeQRToken');
-            
-            if (tokenDisplay) tokenDisplay.textContent = token;
-            if (activeToken) activeToken.textContent = token.split('-')[2];
-            
-            // Generate QR code
-            new QRCode(qrContainer, {
-                text: JSON.stringify({
-                    token: token,
-                    timestamp: new Date().toISOString(),
-                    location: 'Poblacion Ward II, Minglanilla'
-                }),
-                width: 180,
-                height: 180,
-                colorDark: '#000000',
-                colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.H
-            });
-        }
-    }
-
-   
-    generateQRCode() {
-        this.showToast('Generating new QR code...', 'info');
-        
-        // Simulate generation delay
-        setTimeout(() => {
-            this.initializeQRCode();
-            this.showToast('New QR code generated successfully', 'success');
-        }, 1000);
-    }
-
-    refreshQRCode() {
-        this.showToast('Refreshing QR token...', 'info');
-        
-        setTimeout(() => {
-            const qrContainer = document.getElementById('qrcode');
-            if (qrContainer) qrContainer.innerHTML = '';
-            
-            this.initializeQRCode();
-            this.showToast('QR token refreshed', 'success');
-        }, 800);
-    }
-
-    downloadQRCode() {
-        const qrElement = document.querySelector('.qr-code canvas');
-        if (qrElement) {
-            const link = document.createElement('a');
-            link.download = `attendance-qr-${Date.now()}.png`;
-            link.href = qrElement.toDataURL('image/png');
-            link.click();
-            this.showToast('QR code downloaded', 'success');
-        }
-    }
-
-    fullscreenQRCode() {
-        const qrDisplay = document.querySelector('.qr-display');
-        if (qrDisplay) {
-            if (!document.fullscreenElement) {
-                qrDisplay.requestFullscreen().catch(err => {
-                    this.showToast('Failed to enter fullscreen', 'error');
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-    }
-
-    shareQRCode() {
-        if (navigator.share) {
-            navigator.share({
-                title: 'Attendance QR Code',
-                text: 'Scan this QR code to check-in',
-                url: window.location.href
-            }).then(() => {
-                this.showToast('QR code shared successfully', 'success');
-            }).catch(() => {
-                this.showToast('Share cancelled', 'info');
-            });
-        } else {
-            // Fallback: copy to clipboard
-            const token = document.getElementById('qrTokenDisplay')?.textContent;
-            if (token) {
-                navigator.clipboard.writeText(token).then(() => {
-                    this.showToast('Token copied to clipboard', 'success');
-                });
-            }
-        }
-    }
-
-    
-   
-
-
-    runSystemCheck() {
-        this.showToast('Running system diagnostics...', 'info');
-        
-        setTimeout(() => {
-            this.showToast('System check completed. All systems operational.', 'success');
-        }, 1500);
     }
 
     refreshDashboardData() {
-        this.showToast('Refreshing dashboard data...', 'info');
-        
-        // Simulate data refresh
-        setTimeout(() => {
-            this.updateDashboardStats();
-            this.showToast('Dashboard updated successfully', 'success');
-        }, 1000);
+        // Delegate to backend - implement in your PHP
     }
 
-    updateDashboardStats() {
-        // Simulate updating stats with random data
-        const stats = ['Present Today', 'Late Arrivals', 'Total Employees'];
-        
-        stats.forEach(stat => {
-            const element = document.querySelector(`.stat-label:contains(${stat})`)?.previousElementSibling;
-            if (element) {
-                const currentValue = parseInt(element.textContent);
-                const newValue = currentValue + Math.floor(Math.random() * 3) - 1;
-                element.textContent = Math.max(1, newValue);
-            }
-        });
+    updateDashboardStats(data) {
+        // Update stats from backend data
+        if (data.stats) {
+            Object.keys(data.stats).forEach(key => {
+                const element = document.querySelector(`[data-stat="${key}"]`);
+                if (element) {
+                    element.textContent = data.stats[key];
+                }
+            });
+        }
     }
 
     viewAllAttendance() {
-        this.showToast('Loading attendance records...', 'info');
-        // In real app, navigate to attendance page
-    }
-
-    openSearch() {
-        this.showToast('Opening search...', 'info');
-        // In real app, open search modal
-    }
-
-    showNotifications() {
-        this.showToast('You have 3 unread notifications', 'info');
-        // In real app, show notifications dropdown
+        // Delegate to backend - implement in your PHP
     }
 
     toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => {
-                this.showToast('Failed to enter fullscreen mode', 'error');
+                console.error('Fullscreen error:', err);
             });
         } else {
             document.exitFullscreen();
@@ -418,7 +277,6 @@ class Dashboard {
                     <p class="toast-title">Welcome to <span class="logo-main">Atten<span class="text-highlight">dify</span></span> Dashboard!</p>
                 </div>
             </div>
-      
         `;
         
         toastContainer.appendChild(welcomeToast);
@@ -428,22 +286,237 @@ class Dashboard {
             welcomeToast.classList.add('fade-out');
             setTimeout(() => welcomeToast.remove(), 200);
         }, 5000);
-        
-        // Close button
-        welcomeToast.querySelector('.toast-close').addEventListener('click', () => {
-            welcomeToast.classList.add('fade-out');
-            setTimeout(() => welcomeToast.remove(), 300);
-        });
+    }
+
+    // QR Code Management Functions
+    async loadQRCode() {
+        const qrContainer = document.getElementById('qrcode');
+        const tokenDisplay = document.getElementById('qrTokenDisplay');
+        const validUntilDisplay = document.getElementById('qrValidUntil');
+        const activeQRToken = document.getElementById('activeQRToken');
+        const qrExpiryCountdown = document.getElementById('qrExpiryCountdown');
+        const qrStatusIndicator = document.querySelector('.qr-status-indicator');
+
+        if (!qrContainer) return;
+
+        try {
+            const response = await fetch('./api/get-dashboard-qr.php');
+            const data = await response.json();
+
+            if (data.success && data.qr_data) {
+                // Clear existing QR code
+                qrContainer.innerHTML = '';
+
+                // Create new QR code
+                try {
+                    this.qrState.qrInstance = new QRCode(qrContainer, {
+                        text: data.qr_data,
+                        width: 200,
+                        height: 200,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+
+                    // Update token display
+                    this.qrState.currentToken = data.token;
+                    if (tokenDisplay) {
+                        tokenDisplay.textContent = data.token;
+                    }
+                    if (activeQRToken) {
+                        activeQRToken.textContent = data.token.substring(0, 7) + '...';
+                    }
+
+                    // Store timezone for date formatting
+                    this.qrState.serverTimezone = data.timezone || 'Asia/Manila';
+                    
+                    // Parse the ISO 8601 date string from the API (UTC with Z suffix)
+                    this.qrState.expiryTime = new Date(data.expires_at);
+                    
+                    // Use pre-formatted display time from API (already in Manila timezone)
+                    if (validUntilDisplay && data.expires_at_display) {
+                        validUntilDisplay.textContent = data.expires_at_display;
+                    }
+                    
+                    this.startQRCountdown(validUntilDisplay, qrExpiryCountdown);
+
+                    // Update location if available
+                    const locationElement = document.getElementById('qrLocationDisplay');
+                    if (locationElement && data.location_id) {
+                        const locationText = this.qrState.locationMap[data.location_id] || data.location_id;
+                        locationElement.textContent = locationText;
+                    }
+
+                    // Update stat card token
+                    if (activeQRToken) {
+                        activeQRToken.textContent = data.token.substring(0, 7) + '...';
+                    }
+
+                    // Hide the "No active QR code" indicator
+                    if (qrStatusIndicator) {
+                        qrStatusIndicator.style.display = 'none';
+                    }
+
+                } catch (error) {
+                    console.error('Error creating QR code:', error);
+                    qrContainer.innerHTML = '<p style="color: red;">Error generating QR code</p>';
+                }
+            } else {
+                // No active QR code found
+                qrContainer.innerHTML = '<p style="color: #999; padding: 20px;">No active QR code. Generate one from QR Generator.</p>';
+                if (tokenDisplay) tokenDisplay.textContent = '--';
+                if (validUntilDisplay) validUntilDisplay.textContent = '--';
+                if (activeQRToken) activeQRToken.textContent = '--';
+                if (qrExpiryCountdown) qrExpiryCountdown.textContent = '--';
+                
+                // Show the "No active QR code" indicator
+                if (qrStatusIndicator) {
+                    qrStatusIndicator.style.display = 'block';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading QR code:', error);
+            qrContainer.innerHTML = '<p style="color: red;">Error loading QR code</p>';
+        }
+    }
+
+    startQRCountdown(validUntilElement, countdownElement) {
+        // Clear existing interval
+        if (this.qrState.countdownInterval) {
+            clearInterval(this.qrState.countdownInterval);
+        }
+
+        const updateCountdown = () => {
+            if (!this.qrState.expiryTime) return;
+
+            const now = new Date();
+            const diff = this.qrState.expiryTime - now;
+
+            if (diff <= 0) {
+                if (validUntilElement) {
+                    validUntilElement.textContent = 'Expired';
+                    validUntilElement.classList.add('expired');
+                }
+                if (countdownElement) {
+                    countdownElement.textContent = '00:00';
+                }
+                clearInterval(this.qrState.countdownInterval);
+                return;
+            }
+
+            // Format time remaining
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            // Format expiry time using server timezone
+            const expiryDate = new Date(this.qrState.expiryTime);
+            const timeZone = this.qrState.serverTimezone || 'Asia/Manila';
+            const expiryString = expiryDate.toLocaleTimeString('en-US', {
+                timeZone: 'Asia/Manila',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+
+            if (validUntilElement) {
+                validUntilElement.textContent = expiryString;
+                validUntilElement.classList.remove('expired');
+            }
+            if (countdownElement) {
+                countdownElement.textContent = timeString;
+            }
+        };
+
+        // Update immediately
+        updateCountdown();
+
+        // Update every second
+        this.qrState.countdownInterval = setInterval(updateCountdown, 1000);
+    }
+
+    downloadQRCode() {
+        const qrCanvas = document.querySelector('#qrcode canvas');
+        if (qrCanvas) {
+            const link = document.createElement('a');
+            link.href = qrCanvas.toDataURL('image/png');
+            link.download = `qr-${this.qrState.currentToken || 'code'}.png`;
+            link.click();
+            this.showToast('QR code downloaded successfully', 'success');
+        } else {
+            this.showToast('No QR code available to download', 'error');
+        }
+    }
+
+    fullscreenQRCode() {
+        const qrDisplay = document.getElementById('qrDisplay');
+        if (qrDisplay) {
+            if (!document.fullscreenElement) {
+                qrDisplay.requestFullscreen().catch(err => {
+                    console.error('Fullscreen error:', err);
+                    this.showToast('Unable to enter fullscreen', 'error');
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+    }
+
+    async shareQRCode() {
+        const qrCanvas = document.querySelector('#qrcode canvas');
+        if (!qrCanvas) {
+            this.showToast('No QR code available to share', 'error');
+            return;
+        }
+
+        try {
+            // Convert canvas to blob
+            qrCanvas.toBlob(async (blob) => {
+                const file = new File([blob], `qr-${this.qrState.currentToken || 'code'}.png`, { type: 'image/png' });
+                
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            title: 'QR Code',
+                            text: `QR Code Token: ${this.qrState.currentToken}`,
+                            files: [file]
+                        });
+                        this.showToast('QR code shared successfully', 'success');
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.error('Share error:', error);
+                            this.fallbackShareQRCode(qrCanvas);
+                        }
+                    }
+                } else {
+                    this.fallbackShareQRCode(qrCanvas);
+                }
+            }, 'image/png');
+        } catch (error) {
+            console.error('Share error:', error);
+            this.fallbackShareQRCode(qrCanvas);
+        }
+    }
+
+    fallbackShareQRCode(qrCanvas) {
+        // Fallback: copy to clipboard or show download
+        const dataURL = qrCanvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = `qr-${this.qrState.currentToken || 'code'}.png`;
+        link.click();
+        this.showToast('QR code download started (sharing not supported)', 'info');
     }
 }
 
 // Initialize dashboard
 new Dashboard();
 
-// Helper function to check if element contains text
 if (!Element.prototype.matches) {
     Element.prototype.matches = Element.prototype.msMatchesSelector;
 }
+
 function injectToastStyles() {
     if (document.getElementById('toastStyles')) return;
 
@@ -460,7 +533,7 @@ function injectToastStyles() {
         .toast {
             background: #ffffff;
             color: #4CAF50;
-            min-width: 280;
+            min-width: 280px;
             padding: 12px;
             border-radius: 10px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.15);
@@ -469,7 +542,6 @@ function injectToastStyles() {
             justify-content: space-between;
             margin-bottom: 12px;
             animation: slideIn 0.4s ease;
-           
         }
 
         .toast-welcome {
@@ -499,17 +571,19 @@ function injectToastStyles() {
             font-size: 16px;
             color: #999;
         }
-.logo-main {
-     font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    letter-spacing: -0.025em;
-}
 
-.text-highlight {
-    color: var(--primary-blue);
-    font-weight: 700;
-}
+        .logo-main {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.025em;
+        }
+
+        .text-highlight {
+            color: var(--primary-blue);
+            font-weight: 700;
+        }
+
         @keyframes slideIn {
             from {
                 transform: translateX(100%);
@@ -523,4 +597,41 @@ function injectToastStyles() {
     `;
 
     document.head.appendChild(style);
+}
+
+// Scanner integration
+document.addEventListener('DOMContentLoaded', function() {
+    // Open scanner when clicking on "Scan to check-in"
+    const scanOverlay = document.getElementById('scanOverlay');
+    
+    if (scanOverlay) {
+        scanOverlay.addEventListener('click', function() {
+            openScanner();
+        });
+    }
+});
+
+function openScanner() {
+    // Option 1: Open scanner in a modal window
+    const scannerWindow = window.open('scanner.php', 'scanner', 'width=600,height=700,resizable=yes');
+    
+    if (!scannerWindow) {
+        alert('Please allow popups to open the scanner');
+    }
+    
+    // Option 2: If you want to handle the response from scanner
+    // Listen for messages from scanner window
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'qrScanned') {
+            console.log('QR Code scanned:', event.data.qrCode);
+            // Handle the scanned QR code
+            updateDashboardWithQR(event.data.qrCode);
+            scannerWindow.close();
+        }
+    });
+}
+
+function updateDashboardWithQR(qrCode) {
+    console.log('Processing QR code:', qrCode);
+    // Add logic here
 }

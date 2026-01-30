@@ -10,7 +10,7 @@
 </head>
 <body>
 
-    <<div id="dashboard" class="dashboard-container">
+     <div id="dashboard" class="dashboard-container">
         <?php include 'components/header.php'; ?>
 
         <div class="dashboard-layout">

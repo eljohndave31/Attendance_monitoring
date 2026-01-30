@@ -4,7 +4,12 @@ let qrState = {
     refreshInterval: null,
     qrInstance: null,
     isGenerating: true,
-    location: 'office_main'
+    location: 'office_main',
+    serverTimeDiff: 0,
+    lastStatusChange: null,
+    statusDebounceDelay: 500, // milliseconds
+    countdownInterval: null,
+    wasExpired: false
 };
 
 // Initialize on page load
@@ -16,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setupEventListeners() {
-    // Sidebar navigation - just update active state, let links work naturally
+    // Sidebar navigation
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -84,6 +89,7 @@ function initializeTimeUpdates() {
 }
 
 function updateCurrentTime() {
+    // Use server timezone for consistency
     const now = new Date();
     
     const timeElement = document.getElementById('currentTime');
@@ -92,7 +98,7 @@ function updateCurrentTime() {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
-            hour12: false
+            hour12: true
         });
         timeElement.textContent = timeString;
     }
@@ -134,48 +140,63 @@ function loadQRGeneratorView() {
     }, 100);
 }
 
-function generateToken() {
-    return 'QR-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-}
-
 function createLiveQRCode() {
     const container = document.getElementById('liveQRCode');
     if (!container) return;
 
-    const token = generateToken();
     const expiryMinutes = parseInt(document.getElementById('qrExpiry')?.value || '5');
     const locationId = document.getElementById('qrLocation')?.value || 'office_main';
 
-    const generatedAt = new Date();
-    const expiresAt = new Date(generatedAt.getTime() + expiryMinutes * 60000);
+    // Call PHP backend to generate QR code
+    fetch('./api/generate-qr.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            expiry_minutes: expiryMinutes,
+            location_id: locationId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            qrState.currentToken = data.token;
+            
+            // Parse ISO 8601 date correctly (UTC with Z suffix)
+            try {
+                qrState.expiryTime = new Date(data.expires_at);
+                if (isNaN(qrState.expiryTime.getTime())) {
+                    throw new Error('Invalid expiry date');
+                }
+            } catch (e) {
+                console.error('Error parsing expiry date:', data.expires_at, e);
+                qrState.expiryTime = new Date(Date.now() + expiryMinutes * 60000);
+            }
+            
+            qrState.currentPayload = data;
+            qrState.lastStatusChange = Date.now();
 
-    const payload = {
-        token: token,
-        generated_at: generatedAt.toISOString(),
-        expires_at: expiresAt.toISOString(),
-        location_id: locationId
-    };
-
-    qrState.currentToken = token;
-    qrState.expiryTime = expiresAt;
-    qrState.currentPayload = payload;
-
-    container.innerHTML = '';
-
-    try {
-        qrState.qrInstance = new QRCode(container, {
-            text: JSON.stringify(payload),
-            width: 250,
-            height: 250,
-            colorDark: '#000000',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.H
-        });
-    } catch (e) {
-        console.error('Error creating QR code:', e);
-    }
-
-    updateLiveDisplay();
+            container.innerHTML = '';
+            try {
+                qrState.qrInstance = new QRCode(container, {
+                    text: data.qr_data,
+                    width: 250,
+                    height: 250,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            } catch (e) {
+                console.error('Error creating QR code:', e);
+            }
+            updateLiveDisplay();
+            loadQRHistory();
+        } else {
+            console.error('Error from backend:', data.message);
+        }
+    })
+    .catch(error => console.error('Error:', error));
 }
 
 function updateLiveDisplay() {
@@ -191,7 +212,30 @@ function updateLiveDisplay() {
         location.textContent = locationText;
     }
     if (generated) {
-        generated.textContent = qrState.currentPayload ? new Date(qrState.currentPayload.generated_at).toLocaleString() : '--';
+        if (qrState.currentPayload && qrState.currentPayload.generated_at) {
+            try {
+                const date = new Date(qrState.currentPayload.generated_at);
+                
+                if (isNaN(date.getTime())) {
+                    generated.textContent = '--';
+                } else {
+                    generated.textContent = date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    });
+                }
+            } catch (e) {
+                console.error('Error parsing generated date:', e);
+                generated.textContent = '--';
+            }
+        } else {
+            generated.textContent = '--';
+        }
     }
 
     if (expiry && qrState.expiryTime) {
@@ -200,69 +244,95 @@ function updateLiveDisplay() {
 }
 
 function updateCountdown(element, expiryTime) {
+    // Clear any existing countdown interval
+    if (qrState.countdownInterval) {
+        clearInterval(qrState.countdownInterval);
+        qrState.countdownInterval = null;
+    }
+    
     const update = () => {
         const now = new Date();
         const diff = expiryTime - now;
-
-        if (diff <= 0) {
-            element.textContent = '00:00';
-            element.classList.add('expired');
+        const timeSinceLastChange = Date.now() - (qrState.lastStatusChange || 0);
+        const isExpired = diff <= 0;
+        
+        // Handle expiration with debounce
+        if (isExpired && !qrState.wasExpired) {
+            if (timeSinceLastChange > qrState.statusDebounceDelay) {
+                element.textContent = '00:00';
+                element.classList.add('expired');
+                updateQRStatus('Expired');
+                qrState.wasExpired = true;
+                qrState.lastStatusChange = Date.now();
+                loadQRHistory();
+            }
             return;
+        } 
+        
+        // Handle reactivation (if somehow timer went back)
+        if (!isExpired && qrState.wasExpired) {
+            if (timeSinceLastChange > qrState.statusDebounceDelay) {
+                element.classList.remove('expired');
+                updateQRStatus('Active');
+                qrState.wasExpired = false;
+                qrState.lastStatusChange = Date.now();
+            }
         }
 
-        element.classList.remove('expired');
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        // Update countdown display if not expired
+        if (diff > 0) {
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // Ensure Active status is shown
+            if (!qrState.wasExpired && !element.classList.contains('expired')) {
+                element.classList.remove('expired');
+            }
+        }
     };
 
     update();
-    const countdownInterval = setInterval(() => {
+    qrState.countdownInterval = setInterval(() => {
         if (!qrState.isGenerating) {
-            clearInterval(countdownInterval);
+            clearInterval(qrState.countdownInterval);
+            qrState.countdownInterval = null;
             return;
         }
         update();
     }, 1000);
 }
 
+function updateQRStatus(status) {
+    const statusBadge = document.getElementById('qrStatus');
+    if (statusBadge) {
+        statusBadge.textContent = status;
+        statusBadge.classList.remove('active', 'expired');
+        statusBadge.classList.add(status.toLowerCase());
+    }
+}
+
 function loadQRHistory() {
     const historyBody = document.getElementById('qrHistory');
     if (!historyBody) return;
     
-    const sampleHistory = [
-        {
-            token: 'abc123xyz789',
-            generated: '10:30 AM',
-            expired: '10:35 AM',
-            scans: 45,
-            status: 'Expired'
-        },
-        {
-            token: 'def456uvw123',
-            generated: '10:25 AM',
-            expired: '10:30 AM',
-            scans: 38,
-            status: 'Expired'
-        },
-        {
-            token: 'ghi789rst456',
-            generated: '10:20 AM',
-            expired: '10:25 AM',
-            scans: 52,
-            status: 'Expired'
+    // Fetch QR history from PHP backend
+    fetch('./api/get-qr-history.php')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.history) {
+            historyBody.innerHTML = data.history.map(item => `
+                <tr>
+                    <td><code>${item.token}</code></td>
+                    <td>${item.generated}</td>
+                    <td>${item.expired}</td>
+                    <td>${item.scans}</td>
+                    <td><span class="badge-${item.status.toLowerCase()}">${item.status}</span></td>
+                </tr>
+            `).join('');
         }
-    ];
-    
-    historyBody.innerHTML = sampleHistory.map(item => `
-        <tr>
-            <td><code>${item.token}</code></td>
-            <td>${item.generated}</td>
-            <td>${item.expired}</td>
-            <td>${item.scans}</td>
-            <td><span class="badge-expired">${item.status}</span></td>
-        </tr>
-    `).join('');
+    })
+    .catch(error => console.error('Error loading history:', error));
 }
 
 function setupQRGeneratorView() {
@@ -274,7 +344,6 @@ function setupQRGeneratorView() {
     const autoRefreshCheckbox = document.getElementById('autoRefresh');
     const enableGPSCheckbox = document.getElementById('enableGPS');
     const gpsOptions = document.getElementById('gpsOptions');
-
     if (generateBtn) {
         generateBtn.addEventListener('click', () => {
             qrState.isGenerating = true;
@@ -341,10 +410,7 @@ function setupQRGeneratorView() {
             }
         });
     }
-
-    createLiveQRCode();
 }
-
 
 function togglePageFullscreen() {
     if (!document.fullscreenElement) {
@@ -355,3 +421,4 @@ function togglePageFullscreen() {
         document.exitFullscreen();
     }
 }
+

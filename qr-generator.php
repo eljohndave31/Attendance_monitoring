@@ -47,6 +47,9 @@
                                     <select id="qrLocation" class="form-control">
                                         <option value="office_main">Poblacion Ward II, Minglanilla</option>
                                         <option value="office_second">Staca Tunghaan Minglanilla</option>
+                                        <option value="office_branch">Upper Pakigne Minglanilla</option>
+                                        <option value="remote">Remote Location</option>
+                                    
                                     </select>
                                 </div>
                                 

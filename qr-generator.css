@@ -931,6 +931,14 @@ body {
     color: var(--white);
 }
 
+.status-badge.active {
+    background: var(--success-color);
+}
+
+.status-badge.expired {
+    background: var(--danger-color);
+}
+
 .countdown {
     font-family: 'Courier New', monospace;
     font-weight: 700;

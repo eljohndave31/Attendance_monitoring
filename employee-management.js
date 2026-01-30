@@ -92,6 +92,9 @@ function setupEmployeeManagement() {
         });
     }
 
+    // Setup photo upload handlers
+    setupPhotoUploadHandlers();
+
     document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
         console.log('Filters applied');
         loadEmployees();
@@ -124,13 +127,21 @@ async function loadEmployees() {
         tbody.innerHTML = '';
 
         if (!employees || !employees.length) {
-            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No employees found</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No employees found</td></tr>`;
             return;
         }
 
         employees.forEach(emp => {
             const row = document.createElement('tr');
+            const photoCell = emp.photo_url 
+                ? `<img src="${emp.photo_url}" alt="${emp.full_name}" onerror="this.outerHTML='<i class=\'fas fa-user\'></i>'">`
+                : `<i class="fas fa-user"></i>`;
             row.innerHTML = `
+                <td>
+                    <div class="employee-photo">
+                        ${photoCell}
+                    </div>
+                </td>
                 <td>${emp.employee_id}</td>
                 <td>${emp.full_name}</td>
                 <td>${emp.email}</td>
@@ -180,20 +191,27 @@ async function loadEmployees() {
     }
 }
 
-// -------------------- Employee Modal --------------------
+// -------------------- Employee Modal Functions --------------------
 function openEmployeeModal(employee = null) {
     const modal = document.getElementById('employeeModal');
     const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
     const employeeForm = document.getElementById('employeeForm');
     const idHidden = document.getElementById('employeeIdHidden');
+    const saveButtonText = document.getElementById('saveButtonText');
 
     if (!modal) {
         console.error('Employee modal not found');
         return;
     }
 
+    // Reset photo preview first
+    resetPhotoPreview();
+
     if (employee) {
+        // Edit Mode
         modalTitle.textContent = 'Edit Employee';
+        modalIcon.className = 'modal-icon fas fa-user-edit';
         idHidden.value = employee.id || '';
         document.getElementById('employeeId').value = employee.employee_id || '';
         document.getElementById('employeeName').value = employee.full_name || '';
@@ -204,20 +222,149 @@ function openEmployeeModal(employee = null) {
         document.getElementById('employeeStatus').value = employee.status || 'active';
         document.getElementById('employeeJoinDate').value = employee.join_date || '';
         document.getElementById('employeeAddress').value = employee.address || '';
+        
+        // Load photo URL if exists
+        if (employee.photo_url) {
+            setPhotoPreview(employee.photo_url);
+        }
+        
+        if (saveButtonText) saveButtonText.textContent = 'Update Employee';
     } else {
+        // Add Mode
         modalTitle.textContent = 'Add New Employee';
+        modalIcon.className = 'modal-icon fas fa-user-plus';
         idHidden.value = '';
         employeeForm.reset();
-        document.getElementById('employeeId').value = 'EMP-' + Date.now();
+        document.getElementById('employeeId').value = 'EMP' + Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('employeeJoinDate').value = new Date().toISOString().split('T')[0];
+        
+        if (saveButtonText) saveButtonText.textContent = 'Save Employee';
     }
 
+    // Show modal with animation
     modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // Focus on first input field
+    requestAnimationFrame(() => {
+        const firstInput = document.getElementById('employeeName');
+        if (firstInput) firstInput.focus();
+    });
 }
 
 function closeEmployeeModal() {
     const modal = document.getElementById('employeeModal');
     if (modal) {
         modal.classList.remove('show');
+        document.body.style.overflow = '';
+        
+        // Reset form state asynchronously
+        requestAnimationFrame(() => {
+            const employeeForm = document.getElementById('employeeForm');
+            if (employeeForm) employeeForm.reset();
+            resetPhotoPreview();
+            
+            // Remove any error states
+            document.querySelectorAll('.form-control.error').forEach(input => {
+                input.classList.remove('error');
+            });
+        });
+    }
+}
+
+// -------------------- Photo Upload Handlers --------------------
+function setupPhotoUploadHandlers() {
+    const photoInput = document.getElementById('employeePhoto');
+    const removePhotoBtn = document.getElementById('removePhotoBtn');
+
+    if (photoInput) {
+        photoInput.addEventListener('change', handlePhotoChange);
+    }
+
+    if (removePhotoBtn) {
+        removePhotoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            resetPhotoPreview();
+        });
+        // Disable remove button by default
+        removePhotoBtn.disabled = true;
+    }
+}
+
+function handlePhotoChange(e) {
+    const file = e.target.files[0];
+    
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+        showNotification('Photo size must be less than 5MB', 'error');
+        e.target.value = '';
+        return;
+    }
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+        showNotification('Please upload a valid image file (JPG, PNG, or GIF)', 'error');
+        e.target.value = '';
+        return;
+    }
+
+    // Read and preview the image
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const photoPreview = document.getElementById('photoPreview');
+        if (photoPreview) {
+            photoPreview.innerHTML = `<img src="${event.target.result}" alt="Photo preview">`;
+            photoPreview.classList.add('has-photo');
+            photoPreview.dataset.photoData = event.target.result;
+            photoPreview.dataset.hasPhoto = 'true';
+        }
+        
+        // Enable remove button
+        const removeBtn = document.getElementById('removePhotoBtn');
+        if (removeBtn) removeBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function resetPhotoPreview() {
+    const photoPreview = document.getElementById('photoPreview');
+    const photoInput = document.getElementById('employeePhoto');
+    const removeBtn = document.getElementById('removePhotoBtn');
+    
+    if (photoPreview) {
+        photoPreview.innerHTML = `<i class="fas fa-user-circle"></i><span>No photo</span>`;
+        photoPreview.classList.remove('has-photo');
+        photoPreview.dataset.hasPhoto = 'false';
+        delete photoPreview.dataset.photoData;
+        delete photoPreview.dataset.photoUrl;
+    }
+    
+    if (photoInput) {
+        photoInput.value = '';
+    }
+    
+    if (removeBtn) {
+        removeBtn.disabled = true;
+    }
+}
+
+function setPhotoPreview(url) {
+    const photoPreview = document.getElementById('photoPreview');
+    const removeBtn = document.getElementById('removePhotoBtn');
+    
+    if (photoPreview && url) {
+        photoPreview.innerHTML = `<img src="${url}" alt="Profile photo" onerror="this.outerHTML='<i class=\'fas fa-user-circle\'></i><span>No photo</span>'">`;
+        photoPreview.classList.add('has-photo');
+        photoPreview.dataset.photoUrl = url;
+        photoPreview.dataset.hasPhoto = 'true';
+    }
+    
+    if (removeBtn) {
+        removeBtn.disabled = false;
     }
 }
 
@@ -226,6 +373,34 @@ async function handleEmployeeFormSubmit(e) {
     e.preventDefault();
 
     const idHidden = document.getElementById('employeeIdHidden').value;
+    const photoPreview = document.getElementById('photoPreview');
+    const saveBtn = document.getElementById('saveEmployeeBtn');
+    
+    // Add loading state
+    if (saveBtn) {
+        saveBtn.classList.add('loading');
+        saveBtn.disabled = true;
+    }
+    
+    // Get photo data if available
+    let photoUrl = null;
+    if (photoPreview && photoPreview.dataset.hasPhoto === 'true') {
+        if (photoPreview.dataset.photoData) {
+            try {
+                photoUrl = await uploadPhoto(photoPreview.dataset.photoData);
+            } catch (error) {
+                showNotification('Failed to upload photo: ' + error.message, 'error');
+                if (saveBtn) {
+                    saveBtn.classList.remove('loading');
+                    saveBtn.disabled = false;
+                }
+                return;
+            }
+        } else if (photoPreview.dataset.photoUrl) {
+            photoUrl = photoPreview.dataset.photoUrl;
+        }
+    }
+
     const data = {
         employee_id: document.getElementById('employeeId').value,
         full_name: document.getElementById('employeeName').value,
@@ -235,18 +410,26 @@ async function handleEmployeeFormSubmit(e) {
         position: document.getElementById('employeePosition').value,
         status: document.getElementById('employeeStatus').value,
         join_date: document.getElementById('employeeJoinDate').value,
-        address: document.getElementById('employeeAddress').value
+        address: document.getElementById('employeeAddress').value,
+        photo_url: photoUrl
     };
 
-    // Validation
     if (!data.full_name || !data.email || !data.department || !data.position || !data.join_date) {
         showNotification('Please fill all required fields', 'error');
+        if (saveBtn) {
+            saveBtn.classList.remove('loading');
+            saveBtn.disabled = false;
+        }
         return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email)) {
         showNotification('Please enter a valid email address', 'error');
+        if (saveBtn) {
+            saveBtn.classList.remove('loading');
+            saveBtn.disabled = false;
+        }
         return;
     }
 
@@ -274,6 +457,28 @@ async function handleEmployeeFormSubmit(e) {
     } catch (error) {
         console.error('Error:', error);
         showNotification('Error saving employee: ' + error.message, 'error');
+    } finally {
+        if (saveBtn) {
+            saveBtn.classList.remove('loading');
+            saveBtn.disabled = false;
+        }
+    }
+}
+
+// -------------------- Photo Upload to Server --------------------
+async function uploadPhoto(base64Data) {
+    const response = await fetch('/Attendance_monitoring/api/employees.php?upload_photo=true', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo_data: base64Data })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success && result.photo_url) {
+        return result.photo_url;
+    } else {
+        throw new Error(result.error || 'Failed to upload photo');
     }
 }
 
@@ -331,49 +536,60 @@ function showNotification(message, type = 'info') {
         border-radius: 4px;
         z-index: 10000;
         animation: slideIn 0.3s ease-in;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        max-width: 400px;
     `;
-    
     document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
+
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-in forwards';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }
 
-// -------------------- Export Employees (CSV) --------------------
-function exportEmployees() {
-    const rows = [['ID','Name','Email','Department','Position','Status','Join Date']];
-    document.querySelectorAll('#employeeTableBody tr').forEach(tr => {
-        const cols = Array.from(tr.querySelectorAll('td')).slice(0, -1).map(td => td.innerText);
-        if (cols.length) rows.push(cols);
-    });
+// Add notification animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
 
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", "employees.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// -------------------- Time Updates --------------------
+// -------------------- Initialize Time Updates --------------------
 function initializeTimeUpdates() {
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    updateTime();
+    setInterval(updateTime, 1000);
 }
 
-function updateCurrentTime() {
-    const now = new Date();
-    const timeEl = document.getElementById('currentTime');
-    const dateEl = document.getElementById('currentDate');
-
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
-    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+function updateTime() {
+    const currentDateElement = document.getElementById('currentDate');
+    if (currentDateElement) {
+        const now = new Date();
+        currentDateElement.textContent = now.toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
 }
 
-// -------------------- Fullscreen Toggle --------------------
 function togglePageFullscreen() {
     if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => console.log(`Error: ${err.message}`));
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log('Fullscreen not available:', err);
+        });
     } else {
         document.exitFullscreen();
     }
+}
+
+function exportEmployees() {
+    showNotification('Export feature coming soon!', 'info');
 }
